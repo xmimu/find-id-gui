@@ -2,8 +2,7 @@
 
 use std::{
     sync::{Arc, Mutex},
-    thread,
-    time::Duration,
+    thread
 };
 
 use eframe::{
@@ -12,11 +11,13 @@ use eframe::{
 };
 
 mod find_id;
+use crate::find_id::SearchMode;
+
 
 fn main() -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -44,20 +45,22 @@ fn add_font(ctx: &egui::Context) {
 }
 
 struct App {
-    query: Arc<Mutex<String>>,
-    path: Arc<Mutex<String>>,
-    mode: Arc<Mutex<find_id::SearchMode>>,
+    query: String,
+    path: String,
+    mode: find_id::SearchMode,
     results: Arc<Mutex<Vec<find_id::MatchInfo>>>,
+    msg: String,
 }
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         add_font(&cc.egui_ctx);
         Self {
-            query: Arc::new(Mutex::new("".to_string())),
-            path: Arc::new(Mutex::new("".to_string())),
-            mode: Arc::new(Mutex::new(find_id::SearchMode::Guid)),
+            query: "".to_string(),
+            path: "".to_string(),
+            mode: find_id::SearchMode::Guid,
             results: Arc::new(Mutex::new(Vec::new())),
+            msg: "".to_string(),
         }
     }
 }
@@ -65,35 +68,68 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            
+            ui.heading("Find ID");
+
+            // 设置控件之间的默认间距
+            let spacing = ui.spacing_mut();
+            spacing.item_spacing = egui::vec2(40.0, 20.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Path:");
+                ui.text_edit_singleline(&mut self.path);
+                if ui.button("Open file…").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        self.path = path.display().to_string();
+                    }
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Mode:");
+                ui.radio_value(&mut self.mode, SearchMode::MediaID, "MediaID");
+                ui.radio_value(&mut self.mode, SearchMode::Guid, "Guid");
+                ui.radio_value(&mut self.mode, SearchMode::ShortID, "ShortID");
+            });
+
+            // 输入框
+            ui.horizontal(|ui|{
+                ui.label("Query:");
+                ui.text_edit_singleline(&mut self.query);
+            });
+
+            ui.label(format!("Path: {}", self.path));
+
             if ui.button("Search").clicked() {
-                let query = Arc::clone(&self.query);
-                let path = Arc::clone(&self.path);
-                let mode = Arc::clone(&self.mode);
+                let query = self.query.clone();
+                let path = self.path.clone();
+                if !find_id::is_path_valid(&path).is_ok() {
+                    self.msg = format!("Invalid path: {}", path);
+                    ctx.request_repaint();
+                    return;
+                }
+                let mode = self.mode.clone();
                 let results = Arc::clone(&self.results);
                 thread::spawn(move || {
-                    let query = query.lock().unwrap();
-                    let path = path.lock().unwrap();
-                    let mode = mode.lock().unwrap();
-                    let mut results = results.lock().unwrap();
                     println!("Searching for {} in {}", query, path);
-                    *results = find_id::find_id(&query, &path, &mode);
-                    
+                    let res = find_id::find_id(&query, &path, &mode);
+                    println!("Results: {:?}", res.len());
+                    let mut results = results.lock().unwrap();
+                    *results = res;
                 });
             }
 
-            // 显示搜索结果
             let results = self.results.lock().unwrap();
             if results.is_empty() {
                 ui.label("No results found.");
             } else {
                 ui.label("Results:");
                 for result in results.iter() {
-                    ui.label(format!("{}", result.tag));
-                    break;
+                    ui.label(format!("{:?}", result));
                 }
             }
-            
+
+            // 显示消息
+            ui.label(format!("{}", self.msg));
         });
     }
 }

@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use roxmltree::Document;
 use std::{fs, path::PathBuf};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SearchMode {
     MediaID,
     Guid,
@@ -60,7 +60,6 @@ pub fn find_id(query: &str, path: &str, mode: &SearchMode) -> Vec<MatchInfo> {
     let results: Vec<MatchInfo> = entries
         .par_iter()
         .flat_map_iter(|p| {
-            println!("Reading {}", p.display());
             let contents = match fs::read_to_string(p) {
                 Ok(c) => c,
                 Err(e) => {
