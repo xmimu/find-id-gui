@@ -21,7 +21,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "egui example: custom font",
+        "Find ID",
         options,
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )
