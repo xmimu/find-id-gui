@@ -77,7 +77,7 @@ impl eframe::App for App {
             ui.horizontal(|ui| {
                 ui.label("Path:");
                 ui.text_edit_singleline(&mut self.path);
-                if ui.button("Open file…").clicked() {
+                if ui.button("Open folder...").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_folder() {
                         self.path = path.display().to_string();
                     }
